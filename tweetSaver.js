@@ -87,6 +87,122 @@ Ext.define('tweetsaver.controller.searchTweets', {
     }
 });
 
+// view - search Box
+
+Ext.define('tweetsaver.view.searchbox', {
+    extend: 'Ext.form.FieldSet',
+    xtype: 'searchbox',
+
+    controller: 'searchTweets',
+    items: [{
+        xtype: 'textfield',
+        cls: 'searchbox'
+    }, {
+        xtype: 'button',
+        text: 'Search',
+        handler: 'searchTweets',
+    }]
+
+});
+
+// view - display searcht results
+
+Ext.define('tweetsaver.view.tweetsPanel', {
+    extend: 'Ext.grid.Panel',
+    xtype: 'tweetsPanel',
+    cls: 'searchedTweets',
+    controller: 'Tweets',
+    store: {
+        type: 'tweets'
+    },
+    width: '1000',
+    height: '1000',
+
+    columns: [{
+        xtype: 'actioncolumn',
+        header: 'Save',
+        width: 100,
+        align: 'center',
+        items: [{
+            icon: 'http://www.free-icons-download.net/images/floppy-disk-save-button-icon-65887.png',
+            tooltip: 'Save',
+            handler: 'saveTweets',
+        }],
+        flex: 1,
+    }, {
+        text: 'Profile',
+        dataIndex: 'profilePicture',
+        renderer: function (value) {
+            return '<img src="' + value + '" width="45" height="45" borer="0" />';
+        },
+        cell: {
+            encodeHtml: false
+        },
+        flex: 1
+    }, {
+        text: 'Name',
+        dataIndex: 'userName',
+        flex: 1
+    }, {
+        text: 'Account',
+        dataIndex: 'accountName',
+        flex: 1
+    }, {
+        text: 'Content',
+        dataIndex: 'tweetContent',
+        flex: 3
+    }],
+});
+
+// view - display saved tweets
+
+Ext.define('tweetsaver.view.tweetsSavedPanel', {
+    extend: 'Ext.grid.Panel',
+    xtype: 'tweetsSavedPanel',
+    cls: 'savedTweets',
+    controller: 'Tweets',
+    store: {
+        type: 'tweetsSaved' // Create a new store instance
+    },
+    width: '1000',
+    height: '1000',
+
+    columns: [{
+        xtype: 'actioncolumn',
+        header: 'Delete',
+        width: 100,
+        align: 'center',
+        items: [{
+            icon: 'https://n6-img-fp.akamaized.net/free-icon/delete-button_318-77600.jpg?size=338&ext=jpg',
+            tooltip: 'Delete',
+            handler: 'deleteTweets',
+        }],
+        flex: 1,
+    }, {
+        text: 'Profile',
+        dataIndex: 'profilePicture',
+        renderer: function (value) {
+            return '<img src="' + value + '" width="45" height="45" borer="0" />';
+        },
+        cell: {
+            encodeHtml: false
+        },
+        flex: 1
+    }, {
+        text: 'Name',
+        dataIndex: 'userName',
+        flex: 1
+    }, {
+        text: 'Account',
+        dataIndex: 'accountName',
+        flex: 1
+    }, {
+        text: 'Content',
+        dataIndex: 'tweetContent',
+        flex: 3
+    }],
+});
+
 // launch
 
 Ext.application({
@@ -94,17 +210,6 @@ Ext.application({
     launch: function () {
 
         var store = Ext.create('tweetsaver.store.Tweets');
-        var storeSavedTweets = Ext.create('tweetsaver.store.TweetsSaved');
-        var savedTweetsLocal = JSON.parse(localStorage.getItem('savedTweets'));
-        Ext.Array.each(savedTweetsLocal, function (record) {
-            storeSavedTweets.add({
-                profilePicture: record.profilePicture,
-                userName: record.userName,
-                accountName: record.accountName,
-                tweetDate: record.tweetDate,
-                tweetContent: record.tweetContent
-            });
-        });
 
         // view
 
@@ -115,105 +220,26 @@ Ext.application({
                 pack: 'start',
                 align: 'stretch'
             },
-
             renderTo: document.body,
-
             items: [{
-                xtype: 'fieldset',
-                controller: 'searchTweets',
-                items: [{
-                    xtype: 'textfield',
-                    cls: 'searchbox'
-                }, {
-                    xtype: 'button',
-                    text: 'Search',
-                    handler: 'searchTweets',
-                }]
+                xtype: 'searchbox',
             }, {
-                xtype: 'grid',
-                cls: 'searchedTweets',
-                controller: 'Tweets',
-                store: store,
-                width: '1000',
-                height: '1000',
-
-                columns: [{
-                    xtype: 'actioncolumn',
-                    header: 'Save',
-                    width: 100,
-                    align: 'center',
-                    items: [{
-                        icon: 'http://www.free-icons-download.net/images/floppy-disk-save-button-icon-65887.png',
-                        tooltip: 'Save',
-                        handler: 'saveTweets',
-                    }],
-                    flex: 1,
-                }, {
-                    text: 'Profile',
-                    dataIndex: 'profilePicture',
-                    renderer: function (value) {
-                        return '<img src="' + value + '" width="45" height="45" borer="0" />';
-                    },
-                    cell: {
-                        encodeHtml: false
-                    },
-                    flex: 1
-                }, {
-                    text: 'Name',
-                    dataIndex: 'userName',
-                    flex: 1
-                }, {
-                    text: 'Account',
-                    dataIndex: 'accountName',
-                    flex: 1
-                }, {
-                    text: 'Content',
-                    dataIndex: 'tweetContent',
-                    flex: 3
-                }],
+                xtype: 'tweetsPanel',
             }, {
-                xtype: 'grid',
-                cls: 'savedTweets',
-                controller: 'Tweets',
-                store: storeSavedTweets,
-                width: '1000',
-                height: '1000',
-
-                columns: [{
-                    xtype: 'actioncolumn',
-                    header: 'Delete',
-                    width: 100,
-                    align: 'center',
-                    items: [{
-                        icon: 'https://n6-img-fp.akamaized.net/free-icon/delete-button_318-77600.jpg?size=338&ext=jpg',
-                        tooltip: 'Delete',
-                        handler: 'deleteTweets',
-                    }],
-                    flex: 1,
-                }, {
-                    text: 'Profile',
-                    dataIndex: 'profilePicture',
-                    renderer: function (value) {
-                        return '<img src="' + value + '" width="45" height="45" borer="0" />';
-                    },
-                    cell: {
-                        encodeHtml: false
-                    },
-                    flex: 1
-                }, {
-                    text: 'Name',
-                    dataIndex: 'userName',
-                    flex: 1
-                }, {
-                    text: 'Account',
-                    dataIndex: 'accountName',
-                    flex: 1
-                }, {
-                    text: 'Content',
-                    dataIndex: 'tweetContent',
-                    flex: 3
-                }],
+                xtype: 'tweetsSavedPanel',
             }]
+        });
+
+        var storeSavedTweets = Ext.getStore('tweetsSaved');
+        var savedTweetsLocal = JSON.parse(localStorage.getItem('savedTweets'));
+        Ext.Array.each(savedTweetsLocal, function (record) {
+            storeSavedTweets.add({
+                profilePicture: record.profilePicture,
+                userName: record.userName,
+                accountName: record.accountName,
+                tweetDate: record.tweetDate,
+                tweetContent: record.tweetContent
+            });
         });
     }
 });
