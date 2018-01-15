@@ -4,6 +4,7 @@ Ext.define('tweetsaver.store.Tweets', {
     extend: 'Ext.data.Store',
     alias: 'store.tweets',
     autoLoad: false,
+    storeId: 'tweets',
     field: ['profilePicture', 'userName', 'accountName', 'tweetDate', 'tweetContent'],
 
     proxy: {
@@ -19,6 +20,7 @@ Ext.define('tweetsaver.store.Tweets', {
 Ext.define('tweetsaver.store.TweetsSaved', {
     extend: 'Ext.data.Store',
     alias: 'store.tweetsSaved',
+    storeId: 'tweetsSaved',
     autoLoad: false,
     field: ['profilePicture', 'userName', 'accountName', 'tweetDate', 'tweetContent'],
 });
@@ -29,11 +31,11 @@ Ext.define('tweetsaver.controller.Tweets', {
     extend: 'Ext.app.ViewController',
     alias: 'controller.Tweets',
 
-    saveTweets: function (view, index, item, record) {
+    saveTweets: function (grid, rowIndex, colIndex, item, e, record) {
         var savedTweets = localStorage.getItem('savedTweets') ? JSON.parse(localStorage.getItem('savedTweets')) : [];
-        var store = view.getStore();
-        var storeSavedTweets = view.up('panel').down('grid[cls=savedTweets]').getStore();
-        savedTweets.push(store.data.items[index].data);
+        var store = Ext.getStore('tweets');
+        var storeSavedTweets = Ext.getStore('tweetsSaved');
+        savedTweets.push(store.data.items[rowIndex].data);
         localStorage.setItem('savedTweets', JSON.stringify(savedTweets));
         storeSavedTweets.add({
             profilePicture: record.data.profilePicture,
@@ -42,16 +44,17 @@ Ext.define('tweetsaver.controller.Tweets', {
             tweetDate: record.data.tweetDate,
             tweetContent: record.data.tweetContent
         });
-        view.getStore().remove(record); // Remove record from grid
+        store.remove(record); // Remove record from grid
     },
 
-    deleteTweets: function (view, index, item, record) {
+    deleteTweets: function (grid, rowIndex, colIndex, item, e, record) {
+        var storeSavedTweets = Ext.getStore('tweetsSaved');
         var savedTweets = localStorage.getItem('savedTweets') ? JSON.parse(localStorage.getItem('savedTweets')) : [];
         savedTweets = savedTweets.filter(function (tweet) {
             return tweet.tweetContent != record.data.tweetContent;
         });
         localStorage.setItem('savedTweets', JSON.stringify(savedTweets));
-        view.getStore().remove(record); // Remove record from grid
+        storeSavedTweets.remove(record); // Remove record from grid
     },
 });
 
@@ -62,10 +65,10 @@ Ext.define('tweetsaver.controller.searchTweets', {
     alias: 'controller.searchTweets',
 
     searchTweets: function (records, operation, success) {
-        var store = Ext.ComponentQuery.query('grid[cls=searchedTweets]')[0].getStore();
+        var store = Ext.getStore('tweets');
         store.clearData();
         store.removeAll();
-        store.proxy.url = 'https://tweetsaver.herokuapp.com/?q=' + Ext.ComponentQuery.query('searchfield[cls=searchbox]')[0].getValue() + '&count=4';
+        store.proxy.url = 'https://tweetsaver.herokuapp.com/?q=' + Ext.ComponentQuery.query('textfield[cls=searchbox]')[0].getValue() + '&count=4';
         store.read({
             callback: function (records, operation, success) {
                 var tweet_json = Ext.pluck(store.data.items, 'data');
@@ -84,9 +87,7 @@ Ext.define('tweetsaver.controller.searchTweets', {
     }
 });
 
-
 // launch
-
 
 Ext.application({
     name: 'Tweet-Saver',
@@ -105,150 +106,113 @@ Ext.application({
             });
         });
 
-
         // view
 
+        Ext.create('Ext.container.Container', {
 
-        Ext.Viewport.add({
-            xtype: 'container',
-            cls: 'display-tweets',
-            layout: 'vbox',
+            layout: {
+                type: 'vbox',
+                pack: 'start',
+                align: 'stretch'
+            },
+
+            renderTo: document.body,
 
             items: [{
-                xtype: 'panel',
-                controller: 'Tweets',
-                layout: {
-                    type: 'vbox',
-                    pack: 'start',
-                    align: 'stretch'
-                },
-                contoller: 'Tweets',
-                floating: true,
-
+                xtype: 'fieldset',
+                controller: 'searchTweets',
                 items: [{
-                    xtype: 'fieldset',
-                    controller: 'searchTweets',
-                    items: [{
-                        xtype: 'searchfield',
-                        cls: 'searchbox'
-                    }, {
-                        xtype: 'button',
-                        text: 'Search',
-                        handler: 'searchTweets',
-                    }]
+                    xtype: 'textfield',
+                    cls: 'searchbox'
                 }, {
-                    xtype: 'grid',
-                    cls: 'searchedTweets',
-                    store: store,
-                    width: '900',
-                    height: '350',
-
-                    columns: [{
-                        renderer: function () {
-                            var id = Ext.id();
-                            Ext.defer(function () {
-                                Ext.widget('button', {
-                                    renderTo: id,
-                                    text: 'Save',
-                                    width: 80,
-                                    style: {
-                                        'background-color': 'Green',
-                                        'color': 'white',
-                                        'font-size': '12px',
-                                        'font-weight': 'bold'
-                                    },
-                                });
-                            }, 50);
-                            return Ext.String.format('<div id="{0}"></div>', id);
-                        },
-                        cell: {
-                            encodeHtml: false
-                        },
-                        flex: 1,
-                    }, {
-                        text: 'User Profile',
-                        dataIndex: 'profilePicture',
-                        renderer: function (value) {
-                            return '<img src="' + value + '" width="45" height="45" borer="0" />';
-                        },
-                        cell: {
-                            encodeHtml: false
-                        },
-                        flex: 1
-                    }, {
-                        text: 'User Name',
-                        dataIndex: 'userName',
-                        flex: 1
-                    }, {
-                        text: 'Account Name',
-                        dataIndex: 'accountName',
-                        flex: 1
-                    }, {
-                        text: 'Tweet Content',
-                        dataIndex: 'tweetContent',
-                        flex: 5
-                    }],
-                    listeners: {
-                        itemtap: 'saveTweets'
-                    },
-                }, {
-                    xtype: 'grid',
-                    cls: 'savedTweets',
-                    store: storeSavedTweets,
-                    width: '900',
-                    height: '350',
-
-                    columns: [{
-                        renderer: function () {
-                            var id = Ext.id();
-                            Ext.defer(function () {
-                                Ext.widget('button', {
-
-                                    renderTo: id,
-                                    text: 'Delete',
-                                    width: 80,
-                                    style: {
-                                        'background-color': 'Red',
-                                        'color': 'white',
-                                        'font-size': '12px',
-                                        'font-weight': 'bold'
-                                    },
-                                });
-                            }, 50);
-                            return Ext.String.format('<div id="{0}"></div>', id);
-                        },
-                        cell: {
-                            encodeHtml: false
-                        },
-                        flex: 1,
-                    }, {
-                        text: 'User Profile',
-                        dataIndex: 'profilePicture',
-                        renderer: function (value) {
-                            return '<img src="' + value + '" width="45" height="45" borer="0" />';
-                        },
-                        cell: {
-                            encodeHtml: false
-                        },
-                        flex: 1
-                    }, {
-                        text: 'User Name',
-                        dataIndex: 'userName',
-                        flex: 1
-                    }, {
-                        text: 'Account Name',
-                        dataIndex: 'accountName',
-                        flex: 1
-                    }, {
-                        text: 'Tweet Content',
-                        dataIndex: 'tweetContent',
-                        flex: 5
-                    }],
-
-                    listeners: {
-                        itemtap: 'deleteTweets'
-                    },
+                    xtype: 'button',
+                    text: 'Search',
+                    handler: 'searchTweets',
                 }]
+            }, {
+                xtype: 'grid',
+                cls: 'searchedTweets',
+                controller: 'Tweets',
+                store: store,
+                width: '1000',
+                height: '1000',
+
+                columns: [{
+                    xtype: 'actioncolumn',
+                    header: 'Save',
+                    width: 100,
+                    align: 'center',
+                    items: [{
+                        icon: 'http://www.free-icons-download.net/images/floppy-disk-save-button-icon-65887.png',
+                        tooltip: 'Save',
+                        handler: 'saveTweets',
+                    }],
+                    flex: 1,
+                }, {
+                    text: 'Profile',
+                    dataIndex: 'profilePicture',
+                    renderer: function (value) {
+                        return '<img src="' + value + '" width="45" height="45" borer="0" />';
+                    },
+                    cell: {
+                        encodeHtml: false
+                    },
+                    flex: 1
+                }, {
+                    text: 'Name',
+                    dataIndex: 'userName',
+                    flex: 1
+                }, {
+                    text: 'Account',
+                    dataIndex: 'accountName',
+                    flex: 1
+                }, {
+                    text: 'Content',
+                    dataIndex: 'tweetContent',
+                    flex: 3
+                }],
+            }, {
+                xtype: 'grid',
+                cls: 'savedTweets',
+                controller: 'Tweets',
+                store: storeSavedTweets,
+                width: '1000',
+                height: '1000',
+
+                columns: [{
+                    xtype: 'actioncolumn',
+                    header: 'Delete',
+                    width: 100,
+                    align: 'center',
+                    items: [{
+                        icon: 'https://n6-img-fp.akamaized.net/free-icon/delete-button_318-77600.jpg?size=338&ext=jpg',
+                        tooltip: 'Delete',
+                        handler: 'deleteTweets',
+                    }],
+                    flex: 1,
+                }, {
+                    text: 'Profile',
+                    dataIndex: 'profilePicture',
+                    renderer: function (value) {
+                        return '<img src="' + value + '" width="45" height="45" borer="0" />';
+                    },
+                    cell: {
+                        encodeHtml: false
+                    },
+                    flex: 1
+                }, {
+                    text: 'Name',
+                    dataIndex: 'userName',
+                    flex: 1
+                }, {
+                    text: 'Account',
+                    dataIndex: 'accountName',
+                    flex: 1
+                }, {
+                    text: 'Content',
+                    dataIndex: 'tweetContent',
+                    flex: 3
+                }],
             }]
         });
     }
