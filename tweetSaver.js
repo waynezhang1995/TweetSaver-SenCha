@@ -1,10 +1,20 @@
-// store
+// store - search
+
 Ext.define('tweetsaver.store.Tweets', {
     extend: 'Ext.data.Store',
     alias: 'store.tweets',
     autoLoad: false,
     field: ['profilePicture', 'userName', 'accountName', 'tweetDate', 'tweetContent'],
+
+    proxy: {
+        type: 'jsonp',
+        isSynchronous: true,
+        method: 'GET',
+        dataType: 'json',
+    }
 });
+
+// store - saved
 
 Ext.define('tweetsaver.store.TweetsSaved', {
     extend: 'Ext.data.Store',
@@ -13,22 +23,77 @@ Ext.define('tweetsaver.store.TweetsSaved', {
     field: ['profilePicture', 'userName', 'accountName', 'tweetDate', 'tweetContent'],
 });
 
+// controller - save/delete tweets
+
+Ext.define('tweetsaver.controller.Tweets', {
+    extend: 'Ext.app.ViewController',
+    alias: 'controller.Tweets',
+
+    saveTweets: function (view, index, item, record) {
+        var savedTweets = localStorage.getItem('savedTweets') ? JSON.parse(localStorage.getItem('savedTweets')) : [];
+        var store = view.getStore();
+        var storeSavedTweets = view.up('panel').down('grid[cls=savedTweets]').getStore();
+        savedTweets.push(store.data.items[index].data);
+        localStorage.setItem('savedTweets', JSON.stringify(savedTweets));
+        storeSavedTweets.add({
+            profilePicture: record.data.profilePicture,
+            userName: record.data.userName,
+            accountName: record.data.accountName,
+            tweetDate: record.data.tweetDate,
+            tweetContent: record.data.tweetContent
+        });
+        view.getStore().remove(record); // Remove record from grid
+    },
+
+    deleteTweets: function (view, index, item, record) {
+        var savedTweets = localStorage.getItem('savedTweets') ? JSON.parse(localStorage.getItem('savedTweets')) : [];
+        savedTweets = savedTweets.filter(function (tweet) {
+            return tweet.tweetContent != record.data.tweetContent;
+        });
+        localStorage.setItem('savedTweets', JSON.stringify(savedTweets));
+        view.getStore().remove(record); // Remove record from grid
+    },
+});
+
+// controller - search tweets
+
+Ext.define('tweetsaver.controller.searchTweets', {
+    extend: 'Ext.app.ViewController',
+    alias: 'controller.searchTweets',
+
+    searchTweets: function (records, operation, success) {
+        var store = Ext.ComponentQuery.query('grid[cls=searchedTweets]')[0].getStore();
+        store.clearData();
+        store.removeAll();
+        store.proxy.url = 'https://tweetsaver.herokuapp.com/?q=' + Ext.ComponentQuery.query('searchfield[cls=searchbox]')[0].getValue() + '&count=4';
+        store.read({
+            callback: function (records, operation, success) {
+                var tweet_json = Ext.pluck(store.data.items, 'data');
+                Ext.each(tweet_json[0].tweets, function (tweet) {
+                    store.add({
+                        profilePicture: tweet.user.profileImageURL,
+                        userName: tweet.user.name,
+                        accountName: tweet.user.screenName,
+                        tweetDate: tweet.createAt,
+                        tweetContent: tweet.text
+                    })
+                });
+                store.removeAt(0);
+            }
+        });
+    }
+});
+
+
+// launch
+
+
 Ext.application({
     name: 'Tweet-Saver',
     launch: function () {
-        // Search tweets
-        var store = Ext.create('tweetsaver.store.Tweets', {
-            proxy: {
-                type: 'jsonp',
-                isSynchronous: true,
-                method: 'GET',
-                url: 'https://tweetsaver.herokuapp.com/?q=test&count=4',
-                dataType: 'json',
-            }
-        });
 
-        // Saved tweets
-        var storeSavedTweets = Ext.create('tweetsaver.store.Tweets');
+        var store = Ext.create('tweetsaver.store.Tweets');
+        var storeSavedTweets = Ext.create('tweetsaver.store.TweetsSaved');
         var savedTweetsLocal = JSON.parse(localStorage.getItem('savedTweets'));
         Ext.Array.each(savedTweetsLocal, function (record) {
             storeSavedTweets.add({
@@ -40,59 +105,46 @@ Ext.application({
             });
         });
 
+
+        // view
+
+
         Ext.Viewport.add({
             xtype: 'container',
-            contoller: 'tweetsController',
             cls: 'display-tweets',
             layout: 'vbox',
 
             items: [{
                 xtype: 'panel',
+                controller: 'Tweets',
                 layout: {
                     type: 'vbox',
                     pack: 'start',
                     align: 'stretch'
                 },
+                contoller: 'Tweets',
                 floating: true,
 
                 items: [{
                     xtype: 'fieldset',
+                    controller: 'searchTweets',
                     items: [{
                         xtype: 'searchfield',
                         cls: 'searchbox'
                     }, {
                         xtype: 'button',
                         text: 'Search',
-                        handler: function () {
-                            store.clearData();
-                            store.removeAll();
-                            store.proxy.url = 'https://tweetsaver.herokuapp.com/?q=' + Ext.ComponentQuery.query('searchfield[cls=searchbox]')[0].getValue() + '&count=4';
-                            store.read({
-                                callback: function (records, operation, success) {
-                                    var tweet_json = Ext.pluck(store.data.items, 'data');
-                                    Ext.each(tweet_json[0].tweets, function (tweet) {
-                                        store.add({
-                                            profilePicture: tweet.user.profileImageURL,
-                                            userName: tweet.user.name,
-                                            accountName: tweet.user.screenName,
-                                            tweetDate: tweet.createAt,
-                                            tweetContent: tweet.text
-                                        })
-                                    });
-                                    store.removeAt(0);
-                                    console.log(store);
-                                }
-                            });
-                        }
+                        handler: 'searchTweets',
                     }]
                 }, {
                     xtype: 'grid',
+                    cls: 'searchedTweets',
                     store: store,
                     width: '900',
                     height: '350',
 
                     columns: [{
-                        renderer: function (v, m, r) {
+                        renderer: function () {
                             var id = Ext.id();
                             Ext.defer(function () {
                                 Ext.widget('button', {
@@ -137,31 +189,21 @@ Ext.application({
                         flex: 5
                     }],
                     listeners: {
-                        itemtap: function (view, index, item, record) {
-                            var savedTweets = localStorage.getItem('savedTweets') ? JSON.parse(localStorage.getItem('savedTweets')) : [];
-                            savedTweets.push(store.data.items[index].data);
-                            localStorage.setItem('savedTweets', JSON.stringify(savedTweets));
-                            storeSavedTweets.add({
-                                profilePicture: record.data.profilePicture,
-                                userName: record.data.userName,
-                                accountName: record.data.accountName,
-                                tweetDate: record.data.tweetDate,
-                                tweetContent: record.data.tweetContent
-                            });
-                            Ext.ComponentQuery.query('grid[id=' + view.id + ']')[0].getStore().remove(record); // Remove record from grid
-                        }
+                        itemtap: 'saveTweets'
                     },
                 }, {
                     xtype: 'grid',
+                    cls: 'savedTweets',
                     store: storeSavedTweets,
                     width: '900',
                     height: '350',
 
                     columns: [{
-                        renderer: function (v, m, r) {
+                        renderer: function () {
                             var id = Ext.id();
                             Ext.defer(function () {
                                 Ext.widget('button', {
+
                                     renderTo: id,
                                     text: 'Delete',
                                     width: 80,
@@ -204,18 +246,10 @@ Ext.application({
                     }],
 
                     listeners: {
-                        itemtap: function (view, index, item, record) {
-                            var savedTweets = localStorage.getItem('savedTweets') ? JSON.parse(localStorage.getItem('savedTweets')) : [];
-                            savedTweets = savedTweets.filter(function(tweet) {
-                                return tweet.tweetContent != record.data.tweetContent;
-                            });
-                            localStorage.setItem('savedTweets', JSON.stringify(savedTweets));
-                            Ext.ComponentQuery.query('grid[id=' + view.id + ']')[0].getStore().remove(record); // Remove record from grid
-                        }
+                        itemtap: 'deleteTweets'
                     },
                 }]
             }]
         });
-
     }
 });
